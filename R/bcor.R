@@ -1,6 +1,8 @@
 #' Read BCOR File
 #'
-#' @description Opens a BCOR (binary correlation) file and returns a bcor object
+#' @description Opens a BCOR (binary correlation) file and returns a bcor object.
+#' Supports both standard BCOR format (magic: "bcor1.1") and extended format
+#' (magic: "bcor1.1x") which stores diagonal values explicitly.
 #'
 #' @param filename Path to the BCOR file
 #' @param read_header Whether to read the header and metadata immediately (default: TRUE)
@@ -12,6 +14,7 @@
 #'   \item{filename}{Path to the BCOR file}
 #'   \item{nSNPs}{Number of SNPs in the file}
 #'   \item{nSamples}{Number of samples used to compute correlations}
+#'   \item{is_extended}{Whether the file uses extended format with diagonal values}
 #' }
 #'
 #' @export
@@ -36,6 +39,9 @@
 #'
 #' # Read packed symmetric matrix (memory efficient for large matrices)
 #' corr_packed <- bcor$read_corr(packed = TRUE)
+#'
+#' # Get diagonal values (useful for extended format files)
+#' diag_vals <- bcor$get_diagonal()
 #' }
 read_bcor <- function(filename, read_header = TRUE, packed_threshold = 1000) {
   if (!file.exists(filename)) {
@@ -49,6 +55,10 @@ read_bcor <- function(filename, read_header = TRUE, packed_threshold = 1000) {
   # Add methods to the object
   bcor_obj$get_meta <- function() {
     bcor_get_meta(bcor_obj$ptr)
+  }
+
+  bcor_obj$get_diagonal <- function() {
+    bcor_get_diagonal(bcor_obj$ptr)
   }
 
   bcor_obj$read_corr <- function(snps = NULL, snps2 = NULL, sparse = FALSE, packed = FALSE, threshold = 0.0) {
@@ -128,4 +138,7 @@ print.bcor <- function(x, ...) {
   cat("BCOR file:", x$filename, "\n")
   cat("Number of SNPs:", x$nSNPs, "\n")
   cat("Number of samples:", x$nSamples, "\n")
+  if (x$is_extended) {
+    cat("Format: Extended BCOR (with diagonal values)\n")
+  }
 }

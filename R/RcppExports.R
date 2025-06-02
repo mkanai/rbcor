@@ -29,3 +29,7 @@ bcor_read_corr_packed <- function(bcor_ptr, snps = NULL) {
     .Call(`_rbcor_bcor_read_corr_packed`, bcor_ptr, snps)
 }
 
+bcor_get_diagonal <- function(bcor_ptr) {
+    .Call(`_rbcor_bcor_get_diagonal`, bcor_ptr)
+}
+

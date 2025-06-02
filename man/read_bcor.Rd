@@ -20,10 +20,13 @@ A bcor object containing:
   \item{filename}{Path to the BCOR file}
   \item{nSNPs}{Number of SNPs in the file}
   \item{nSamples}{Number of samples used to compute correlations}
+  \item{is_extended}{Whether the file uses extended format with diagonal values}
 }
 }
 \description{
-Opens a BCOR (binary correlation) file and returns a bcor object
+Opens a BCOR (binary correlation) file and returns a bcor object.
+Supports both standard BCOR format (magic: "bcor1.1") and extended format
+(magic: "bcor1.1x") which stores diagonal values explicitly.
 }
 \examples{
 \dontrun{
@@ -46,5 +49,8 @@ corr_sparse <- bcor$read_corr(snps = 1:100, sparse = TRUE, threshold = 0.1)
 
 # Read packed symmetric matrix (memory efficient for large matrices)
 corr_packed <- bcor$read_corr(packed = TRUE)
+
+# Get diagonal values (useful for extended format files)
+diag_vals <- bcor$get_diagonal()
 }
 }

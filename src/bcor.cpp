@@ -69,9 +69,18 @@ void Bcor::readHeader()
     magic[7] = '\0';
     checkFilePosition("header read");
 
-    if (std::string(magic) != "bcor1.1")
+    std::string magic_str(magic);
+    if (magic_str == "bcor1.1")
     {
-        throw std::runtime_error("File '" + fname + "' is not from LDStore!");
+        is_extended_format = false;
+    }
+    else if (magic_str == "bcor1.1x" || magic_str == "bcor1.x")
+    {
+        is_extended_format = true;
+    }
+    else
+    {
+        throw std::runtime_error("File '" + fname + "' is not a valid bcor file! Magic: " + magic_str);
     }
 
     fh.read(reinterpret_cast<char *>(&fsize), sizeof(uint64_t));
@@ -219,7 +228,15 @@ double Bcor::readCorrPairTyped(uint32_t snp_x, uint32_t snp_y) const
     using Traits = CompressionTraits<comp_type>;
 
     uint64_t index = getIndex(snp_x, snp_y);
-    uint64_t offset = corr_block_offset + index * Traits::bytes;
+    uint64_t offset = corr_block_offset;
+
+    // In extended format, diagonal values come first
+    if (is_extended_format)
+    {
+        offset += nSNPs * Traits::bytes; // Skip diagonal values
+    }
+
+    offset += index * Traits::bytes;
 
     typename Traits::type val = readBuffered<typename Traits::type>(offset);
 
@@ -228,6 +245,72 @@ double Bcor::readCorrPairTyped(uint32_t snp_x, uint32_t snp_y) const
         return NA_REAL;
     }
     return std::ldexp(static_cast<double>(val), -1 * (8 * Traits::bytes - 2)) - 1.0;
+}
+
+// Template-based diagonal reading for extended format
+template <uint8_t comp_type>
+double Bcor::readDiagonalTyped(uint32_t snp_idx) const
+{
+    using Traits = CompressionTraits<comp_type>;
+
+    uint64_t offset = corr_block_offset + snp_idx * Traits::bytes;
+    typename Traits::type val = readBuffered<typename Traits::type>(offset);
+
+    if (val == Traits::na_value)
+    {
+        return NA_REAL;
+    }
+    return std::ldexp(static_cast<double>(val), -1 * (8 * Traits::bytes - 2)) - 1.0;
+}
+
+// Load all diagonal values for extended format
+void Bcor::loadDiagonalValues() const
+{
+    if (!is_extended_format || diagonal_loaded)
+    {
+        return;
+    }
+
+    diagonal_values.resize(nSNPs);
+
+    for (uint32_t i = 0; i < nSNPs; ++i)
+    {
+        switch (compression)
+        {
+        case 0:
+            diagonal_values[i] = readDiagonalTyped<0>(i);
+            break;
+        case 1:
+            diagonal_values[i] = readDiagonalTyped<1>(i);
+            break;
+        case 2:
+            diagonal_values[i] = readDiagonalTyped<2>(i);
+            break;
+        case 3:
+            diagonal_values[i] = readDiagonalTyped<3>(i);
+            break;
+        default:
+            throw std::runtime_error("Unknown compression type");
+        }
+    }
+
+    diagonal_loaded = true;
+}
+
+// Get diagonal value for a SNP
+double Bcor::getDiagonalValue(uint32_t snp_idx) const
+{
+    if (!is_extended_format)
+    {
+        return 1.0; // Standard format always has diagonal = 1
+    }
+
+    if (!diagonal_loaded)
+    {
+        loadDiagonalValues();
+    }
+
+    return diagonal_values[snp_idx];
 }
 
 // Runtime dispatcher for correlation reading
@@ -246,6 +329,19 @@ double Bcor::readCorrPair(uint32_t snp_x, uint32_t snp_y, bool seek) const
     default:
         throw std::runtime_error("Unknown compression type");
     }
+}
+
+// Get diagonal values
+std::vector<double> Bcor::getDiagonalValues() const
+{
+    std::vector<double> diag_vals(nSNPs);
+
+    for (uint32_t i = 0; i < nSNPs; ++i)
+    {
+        diag_vals[i] = getDiagonalValue(i);
+    }
+
+    return diag_vals;
 }
 
 // Legacy methods (kept for compatibility)
@@ -308,12 +404,19 @@ arma::mat Bcor::readCorr(const std::vector<int> &snps)
     if (snps.empty())
     {
         // Read full matrix
-        arma::mat corr(nSNPs, nSNPs, arma::fill::eye);
+        arma::mat corr(nSNPs, nSNPs);
 
         // Clear buffer to ensure sequential reading works optimally
         buffer_start_offset = UINT64_MAX;
         buffer_end_offset = 0;
 
+        // Set diagonal values
+        for (uint32_t i = 0; i < nSNPs; ++i)
+        {
+            corr(i, i) = getDiagonalValue(i);
+        }
+
+        // Read off-diagonal values
         for (uint32_t snp_x = 0; snp_x < nSNPs - 1; ++snp_x)
         {
             for (uint32_t snp_y = snp_x + 1; snp_y < nSNPs; ++snp_y)
@@ -340,7 +443,7 @@ arma::mat Bcor::readCorr(const std::vector<int> &snps)
             {
                 if (snp_x == static_cast<int>(snp_y))
                 {
-                    corr(snp_y, i) = 1.0;
+                    corr(snp_y, i) = getDiagonalValue(snp_x);
                 }
                 else
                 {
@@ -372,7 +475,7 @@ arma::mat Bcor::readCorr(const std::vector<int> &snps1, const std::vector<int> &
         {
             if (snps1[i] == snps2[j])
             {
-                corr(i, j) = 1.0;
+                corr(i, j) = getDiagonalValue(snps1[i]);
             }
             else
             {
@@ -418,7 +521,8 @@ Rcpp::List bcor_open(std::string filename, bool read_header = true)
         Rcpp::Named("ptr") = ptr,
         Rcpp::Named("filename") = bcor->getFname(),
         Rcpp::Named("nSNPs") = static_cast<int>(bcor->getNumOfSNPs()),
-        Rcpp::Named("nSamples") = static_cast<int>(bcor->getNumOfSamples()));
+        Rcpp::Named("nSamples") = static_cast<int>(bcor->getNumOfSamples()),
+        Rcpp::Named("is_extended") = bcor->isExtendedFormat());
 }
 
 // [[Rcpp::export]]
@@ -532,6 +636,14 @@ Rcpp::S4 bcor_read_corr_packed(SEXP bcor_ptr, Rcpp::Nullable<Rcpp::IntegerVector
     dsp.slot("uplo") = Rcpp::CharacterVector::create("U");
 
     return dsp;
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector bcor_get_diagonal(SEXP bcor_ptr)
+{
+    Rcpp::XPtr<Bcor> bcor(bcor_ptr);
+    std::vector<double> diag_vals = bcor->getDiagonalValues();
+    return Rcpp::wrap(diag_vals);
 }
 
 arma::sp_mat Bcor::readCorrSparse(const std::vector<int> &snps1, const std::vector<int> &snps2, double threshold)

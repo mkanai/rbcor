@@ -98,6 +98,17 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// bcor_get_diagonal
+Rcpp::NumericVector bcor_get_diagonal(SEXP bcor_ptr);
+RcppExport SEXP _rbcor_bcor_get_diagonal(SEXP bcor_ptrSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type bcor_ptr(bcor_ptrSEXP);
+    rcpp_result_gen = Rcpp::wrap(bcor_get_diagonal(bcor_ptr));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_rbcor_bcor_open", (DL_FUNC) &_rbcor_bcor_open, 2},
@@ -107,6 +118,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_rbcor_bcor_read_corr_sparse", (DL_FUNC) &_rbcor_bcor_read_corr_sparse, 3},
     {"_rbcor_bcor_read_corr_sparse2", (DL_FUNC) &_rbcor_bcor_read_corr_sparse2, 4},
     {"_rbcor_bcor_read_corr_packed", (DL_FUNC) &_rbcor_bcor_read_corr_packed, 2},
+    {"_rbcor_bcor_get_diagonal", (DL_FUNC) &_rbcor_bcor_get_diagonal, 1},
     {NULL, NULL, 0}
 };
 

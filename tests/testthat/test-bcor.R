@@ -387,3 +387,46 @@ test_that("rectangular matrices cannot use packed storage", {
   expect_true(is.matrix(corr_result))
   expect_equal(dim(corr_result), c(5, 5))
 })
+
+# Tests for extended BCOR format
+test_that("extended BCOR format is detected correctly", {
+  bcor_file <- system.file("extdata", "data.bcor", package = "rbcor")
+  bcor <- read_bcor(bcor_file)
+
+  # Standard format should not be extended
+  expect_false(bcor$is_extended)
+})
+
+test_that("diagonal values are correct for standard format", {
+  bcor_file <- system.file("extdata", "data.bcor", package = "rbcor")
+  bcor <- read_bcor(bcor_file)
+
+  # Get diagonal values
+  diag_vals <- bcor$get_diagonal()
+
+  expect_type(diag_vals, "double")
+  expect_length(diag_vals, bcor$nSNPs)
+
+  # Standard format should have all diagonal values = 1.0
+  expect_true(all(diag_vals == 1.0))
+
+  # Verify against matrix diagonal
+  corr_full <- bcor$read_corr()
+  expect_equal(diag(corr_full), diag_vals)
+})
+
+test_that("print method shows extended format info", {
+  bcor_file <- system.file("extdata", "data.bcor", package = "rbcor")
+  bcor <- read_bcor(bcor_file)
+
+  # Capture print output
+  output <- capture.output(print(bcor))
+
+  # Should contain basic info
+  expect_true(any(grepl("BCOR file:", output)))
+  expect_true(any(grepl("Number of SNPs:", output)))
+  expect_true(any(grepl("Number of samples:", output)))
+
+  # Should not show extended format message for standard file
+  expect_false(any(grepl("Extended BCOR", output)))
+})
