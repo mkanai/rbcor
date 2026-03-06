@@ -5,3 +5,11 @@
 src/*.o
 src/*.so
 src/*.dll
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# R CMD build/check artifacts
+rbcor_*.tar.gz
+rbcor.Rcheck/

@@ -16,17 +16,17 @@ read_bcor(filename, read_header = TRUE, packed_threshold = 1000)
 \value{
 A bcor object containing:
 \itemize{
-  \item{ptr}{External pointer to the C++ bcor object}
-  \item{filename}{Path to the BCOR file}
-  \item{nSNPs}{Number of SNPs in the file}
-  \item{nSamples}{Number of samples used to compute correlations}
-  \item{is_extended}{Whether the file uses extended format with diagonal values}
+  \item \code{ptr}: External pointer to the C++ bcor object
+  \item \code{filename}: Path to the BCOR file
+  \item \code{nSNPs}: Number of SNPs in the file
+  \item \code{nSamples}: Number of samples used to compute correlations
+  \item \code{is_extended}: Whether the file uses extended format with diagonal values
 }
 }
 \description{
 Opens a BCOR (binary correlation) file and returns a bcor object.
 Supports both standard BCOR format (magic: "bcor1.1") and extended format
-(magic: "bcor1.1x") which stores diagonal values explicitly.
+(magic: "bcor1.x") which stores diagonal values explicitly.
 }
 \examples{
 \dontrun{
